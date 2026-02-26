@@ -1,105 +1,96 @@
 import streamlit as st
 import pandas as pd
-import requests
 from datetime import date
 
 # --- CONFIGURACIÓN ---
 CLAVE_ADMIN = "jess7386"
-URL_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSd92A98fvp-Eae8-wKGDoCwxRKjjkZyFOEVZzywBTb31mAQYQ/formResponse"
-SHEET_ID = "1ORuU56oKeW7Y6pNgj--gX_-AYDxQAiZZFYnYEGBK-d8"
 
 st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
-# Función para LEER los datos del Excel (Blindada)
-def cargar_datos_nube():
-    # Usamos el GID 1791632682 que aparece en tu captura del Excel
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1791632682"
-    try:
-        df = pd.read_csv(url)
-        # Limpiamos filas que Google genera vacías
-        if not df.empty:
-            df = df.dropna(subset=['Marca temporal'], how='all')
-        return df
-    except Exception as e:
-        return pd.DataFrame(columns=["Marca temporal", "ID", "Fecha", "Local", "Descripción", "Categoría", "Monto"])
+# Estilo personalizado para SyncData
+st.markdown("""
+    <style>
+    .main { background-color: #f5f5f5; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Inicializar los datos en la sesión
-if 'df' not in st.session_state:
-    st.session_state.df = cargar_datos_nube()
+# --- BASE DE DATOS EN LA NUBE (Memoria temporal) ---
+if 'db_mantenimiento' not in st.session_state:
+    # Creamos una tabla vacía con las columnas que necesitas
+    st.session_state.db_mantenimiento = pd.DataFrame(
+        columns=["Fecha", "Local", "Descripción", "Categoría", "Monto (S/)"]
+    )
 
 st.title("🛠️ Caja Chica Carlos Ortiz Mantenimiento")
+st.info("Slogan: SyncData - Automatización de datos")
 
-# --- BARRA LATERAL (Acceso y Registro) ---
-st.sidebar.title("🔐 Acceso")
-pass_input = st.sidebar.text_input("Clave de administrador:", type="password")
+# --- PANEL LATERAL ---
+st.sidebar.header("🔐 Acceso Admin")
+password = st.sidebar.text_input("Ingresa la clave:", type="password")
 
-if pass_input == CLAVE_ADMIN:
-    st.sidebar.success("✅ Modo Edición Activo")
-    with st.sidebar.form("registro", clear_on_submit=True):
-        st.header("📝 Nuevo Registro")
-        f = st.date_input("Fecha", date.today())
-        l = st.text_input("N° de Local")
-        d = st.text_input("Descripción del gasto")
-        c = st.selectbox("Categoría", ["Movilidad", "Alimentación", "Gasto de local", "Otros"])
-        m = st.number_input("Monto (S/)", min_value=0.0, step=0.10)
+if password == CLAVE_ADMIN:
+    st.sidebar.success("Modo Edición Activado")
+    
+    with st.sidebar.form("formulario_registro", clear_on_submit=True):
+        st.subheader("📝 Registrar Gasto")
+        fecha_gasto = st.date_input("Fecha", date.today())
+        n_local = st.text_input("N° de Local")
+        desc = st.text_input("Descripción")
+        cat = st.selectbox("Categoría", ["Movilidad", "Alimentación", "Gasto de local", "Materiales", "Otros"])
+        monto = st.number_input("Monto (S/)", min_value=0.0, step=0.50)
         
-        if st.form_submit_button("💾 Guardar en Google Sheets"):
-            id_u = pd.Timestamp.now().strftime('%Y%m%d%H%M%S')
+        if st.form_submit_button("💾 Guardar Registro"):
+            # Creamos la nueva fila
+            nueva_fila = pd.DataFrame({
+                "Fecha": [str(fecha_gasto)],
+                "Local": [n_local],
+                "Descripción": [desc],
+                "Categoría": [cat],
+                "Monto (S/)": [monto]
+            })
             
-            # MAPEO DE CAMPOS (Verificado con tu formulario - entry IDs completos)
-            datos_enviar = {
-                "entry.1593539825": id_u,
-                "entry.1223947471": str(f),
-                "entry.174092490": l,
-                "entry.1802951965": d,
-                "entry.1018596001": c,
-                "entry.1989045768": str(m)
-            }
-            
-            try:
-                # Envío de datos al servidor de Google
-                r = requests.post(URL_FORM, data=datos_enviar)
-                if r.status_code == 200:
-                    st.success("¡Datos sincronizados con éxito!")
-                    # Recargar tabla inmediatamente
-                    st.session_state.df = cargar_datos_nube()
-                    st.rerun()
-                else:
-                    st.error("Google recibió el dato pero hubo un error. Revisa el formulario.")
-            except:
-                st.error("Error crítico de conexión.")
-else:
-    st.sidebar.info("Introduzca la clave para habilitar el registro.")
+            # La añadimos a la base de datos en memoria
+            st.session_state.db_mantenimiento = pd.concat(
+                [st.session_state.df_mantenimiento if 'df_mantenimiento' in locals() else st.session_state.db_mantenimiento, nueva_fila], 
+                ignore_index=True
+            )
+            st.sidebar.balloons()
+            st.rerun()
 
-# --- PANEL PRINCIPAL (Visualización) ---
+# --- PANEL PRINCIPAL ---
+df = st.session_state.db_mantenimiento
+
+# Métricas rápidas
+col1, col2, col3 = st.columns(3)
+total = df["Monto (S/)"].sum()
+registros = len(df)
+
+col1.metric("Gasto Total", f"S/ {total:,.2f}")
+col2.metric("N° de Registros", registros)
+col3.metric("Empresa", "SyncData")
+
 st.write("---")
+st.subheader("📋 Historial de Movimientos")
 
-# Calcular total solo si hay registros reales
-if not st.session_state.df.empty:
-    # Intentar convertir Monto a número si viene como texto
-    if "Monto" in st.session_state.df.columns:
-        m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
-        total_acumulado = m_calc.sum()
-        
-        c1, c2 = st.columns(2)
-        c1.metric("Gasto Total Acumulado", f"S/ {total_acumulado:,.2f}")
-        c2.metric("Registros en Nube", len(st.session_state.df))
-
-st.write("### 📋 Historial en Google Sheets")
-
-# Mostrar solo las columnas relevantes
-if not st.session_state.df.empty:
-    # Seleccionamos solo lo que queremos ver, si las columnas existen
-    cols_interes = ["Marca temporal", "Local", "Descripción", "Categoría", "Monto"]
-    columnas_finales = [c for c in cols_interes if c in st.session_state.df.columns]
-    st.dataframe(st.session_state.df[columnas_finales], use_container_width=True)
+if not df.empty:
+    # Mostramos la tabla interactiva
+    st.dataframe(df, use_container_width=True)
+    
+    # BOTÓN DE ORO: Descargar para que los datos duren
+    st.write("⚠️ **Importante:** Para que tus datos duren para siempre, descarga tu respaldo al finalizar el día:")
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Descargar Excel de Respaldo (CSV)",
+        data=csv,
+        file_name=f"Caja_Mantenimiento_{date.today()}.csv",
+        mime="text/csv",
+    )
 else:
-    st.info("No hay datos registrados todavía en la hoja de Excel.")
+    st.warning("Aún no hay datos registrados en esta sesión.")
 
-# Botón para descargar reporte físico
-if not st.session_state.df.empty:
-    csv = st.session_state.df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Descargar Reporte CSV", csv, "reporte_mantenimiento.csv", "text/csv")
+st.write("---")
+st.caption("Desarrollado para Mantenimiento Carlos Ortiz | SyncData 2026")
 
 
 
