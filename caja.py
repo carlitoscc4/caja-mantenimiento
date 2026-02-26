@@ -7,28 +7,51 @@ CLAVE_ADMIN = "jess7386"
 
 st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
-# Estilo personalizado
+# --- ESTILO DE ALTO CONTRASTE (SyncData Dark Mode) ---
 st.markdown("""
     <style>
-    .main { background-color: #f5f5f5; }
+    /* Fondo general */
+    .stApp {
+        background-color: #0E1117;
+    }
+    
+    /* Títulos y textos generales */
+    h1, h2, h3, p, span {
+        color: #FFFFFF !important;
+    }
+
+    /* Tarjetas de Métricas (Más oscuras y con borde resaltado) */
     div[data-testid="stMetric"] {
-        background-color: #ffffff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        border: 1px solid #e0e0e0;
+        background-color: #1E2130;
+        padding: 20px;
+        border-radius: 12px;
+        border: 2px solid #3E44FE; /* Azul SyncData */
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    }
+    
+    /* Ajuste de color dentro de las métricas */
+    div[data-testid="stMetricLabel"] > div {
+        color: #B0BCCB !important; /* Etiqueta en gris claro */
+    }
+    div[data-testid="stMetricValue"] > div {
+        color: #FFD700 !important; /* Valores en Dorado para que resalten */
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #161B22;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS EN LA NUBE (Memoria temporal) ---
+# --- BASE DE DATOS EN SESIÓN ---
 if 'db_mantenimiento' not in st.session_state:
     st.session_state.db_mantenimiento = pd.DataFrame(
         columns=["Fecha", "Local", "Descripción", "Categoría", "Monto (S/)"]
     )
 
-st.title("🛠️ Caja Chica Carlos Ortiz Mantenimiento")
-st.info("Slogan: SyncData - Automatización de datos")
+st.title("🛠️ Caja Chica Carlos Ortiz")
+st.markdown("<h3 style='color: #3E44FE;'>SyncData - Automatización de datos</h3>", unsafe_allow_html=True)
 
 # --- PANEL LATERAL ---
 st.sidebar.header("🔐 Acceso Admin")
@@ -45,11 +68,8 @@ if password == CLAVE_ADMIN:
         cat = st.selectbox("Categoría", ["Movilidad", "Alimentación", "Gasto de local", "Materiales", "Otros"])
         monto = st.number_input("Monto (S/)", min_value=0.0, step=0.50)
         
-        submit = st.form_submit_button("💾 Guardar Registro")
-        
-        if submit:
+        if st.form_submit_button("💾 Guardar Registro"):
             if n_local and desc and monto > 0:
-                # Nueva fila
                 nueva_fila = pd.DataFrame({
                     "Fecha": [str(fecha_gasto)],
                     "Local": [n_local],
@@ -57,50 +77,41 @@ if password == CLAVE_ADMIN:
                     "Categoría": [cat],
                     "Monto (S/)": [monto]
                 })
-                
-                # Concatenación corregida
                 st.session_state.db_mantenimiento = pd.concat(
                     [st.session_state.db_mantenimiento, nueva_fila], 
                     ignore_index=True
                 )
-                st.sidebar.balloons()
                 st.rerun()
             else:
-                st.sidebar.error("Por favor completa todos los campos.")
+                st.sidebar.error("Completa todos los campos")
 
 # --- PANEL PRINCIPAL ---
 df = st.session_state.db_mantenimiento
 
-# Métricas rápidas
+# Métricas con colores de alto contraste
 col1, col2, col3 = st.columns(3)
 total = df["Monto (S/)"].sum()
-registros = len(df)
 
-with col1:
-    st.metric("Gasto Total", f"S/ {total:,.2f}")
-with col2:
-    st.metric("N° de Registros", registros)
-with col3:
-    st.metric("Empresa", "SyncData")
+col1.metric("Gasto Total", f"S/ {total:,.2f}")
+col2.metric("N° de Registros", len(df))
+col3.metric("Estado", "Activo")
 
 st.write("---")
 st.subheader("📋 Historial de Movimientos")
 
 if not df.empty:
-    # Mostramos la tabla interactiva
+    # La tabla de Streamlit se adapta automáticamente al modo oscuro
     st.dataframe(df, use_container_width=True)
     
-    # Botón de descarga
-    st.write("⚠️ **Importante:** Para que tus datos duren para siempre, descarga tu respaldo al finalizar el día:")
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
-        label="📥 Descargar Excel de Respaldo (CSV)",
+        label="📥 Descargar Respaldo (CSV)",
         data=csv,
         file_name=f"Caja_Mantenimiento_{date.today()}.csv",
         mime="text/csv",
     )
 else:
-    st.warning("Aún no hay datos registrados en esta sesión.")
+    st.warning("No hay datos en la sesión actual.")
 
 st.write("---")
 st.caption("Desarrollado para Mantenimiento Carlos Ortiz | SyncData 2026")
