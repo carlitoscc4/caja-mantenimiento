@@ -10,17 +10,17 @@ SHEET_ID = "1ORuU56oKeW7Y6pNgj--gX_-AYDxQAiZZFYnYEGBK-d8"
 
 st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
-# Función para LEER los datos del Excel
+# Función para LEER los datos del Excel (Blindada)
 def cargar_datos_nube():
-    # Usamos el GID de tu hoja de respuestas para leer directamente
+    # Usamos el GID 1791632682 que aparece en tu captura del Excel
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1791632682"
     try:
         df = pd.read_csv(url)
-        # Limpiamos filas que Google Sheets genera vacías por error
+        # Limpiamos filas que Google genera vacías
         if not df.empty:
-            df = df.dropna(subset=['Local', 'Descripción'], how='all')
+            df = df.dropna(subset=['Marca temporal'], how='all')
         return df
-    except:
+    except Exception as e:
         return pd.DataFrame(columns=["Marca temporal", "ID", "Fecha", "Local", "Descripción", "Categoría", "Monto"])
 
 # Inicializar los datos en la sesión
@@ -46,7 +46,7 @@ if pass_input == CLAVE_ADMIN:
         if st.form_submit_button("💾 Guardar en Google Sheets"):
             id_u = pd.Timestamp.now().strftime('%Y%m%d%H%M%S')
             
-            # MAPEO DE CAMPOS (Verificado con tu formulario)
+            # MAPEO DE CAMPOS (Verificado con tu formulario - entry IDs completos)
             datos_enviar = {
                 "entry.1593539825": id_u,
                 "entry.1223947471": str(f),
@@ -58,13 +58,16 @@ if pass_input == CLAVE_ADMIN:
             
             try:
                 # Envío de datos al servidor de Google
-                requests.post(URL_FORM, data=datos_enviar)
-                st.success("¡Datos sincronizados con éxito!")
-                # Forzar recarga de los datos para ver el nuevo registro
-                st.session_state.df = cargar_datos_nube()
-                st.rerun()
+                r = requests.post(URL_FORM, data=datos_enviar)
+                if r.status_code == 200:
+                    st.success("¡Datos sincronizados con éxito!")
+                    # Recargar tabla inmediatamente
+                    st.session_state.df = cargar_datos_nube()
+                    st.rerun()
+                else:
+                    st.error("Google recibió el dato pero hubo un error. Revisa el formulario.")
             except:
-                st.error("Error al conectar con Google Sheets.")
+                st.error("Error crítico de conexión.")
 else:
     st.sidebar.info("Introduzca la clave para habilitar el registro.")
 
@@ -72,24 +75,28 @@ else:
 st.write("---")
 
 # Calcular total solo si hay registros reales
-if not st.session_state.df.empty and "Monto" in st.session_state.df.columns:
-    m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
-    total_acumulado = m_calc.sum()
-    
-    col1, col2 = st.columns(2)
-    col1.metric("Gasto Total Acumulado", f"S/ {total_acumulado:,.2f}")
-    col2.metric("Registros en Nube", len(st.session_state.df))
+if not st.session_state.df.empty:
+    # Intentar convertir Monto a número si viene como texto
+    if "Monto" in st.session_state.df.columns:
+        m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
+        total_acumulado = m_calc.sum()
+        
+        c1, c2 = st.columns(2)
+        c1.metric("Gasto Total Acumulado", f"S/ {total_acumulado:,.2f}")
+        c2.metric("Registros en Nube", len(st.session_state.df))
 
 st.write("### 📋 Historial en Google Sheets")
 
-# Mostrar solo las columnas relevantes si hay datos
+# Mostrar solo las columnas relevantes
 if not st.session_state.df.empty:
-    columnas_vista = [col for col in ["Fecha", "Local", "Descripción", "Categoría", "Monto"] if col in st.session_state.df.columns]
-    st.dataframe(st.session_state.df[columnas_vista], use_container_width=True)
+    # Seleccionamos solo lo que queremos ver, si las columnas existen
+    cols_interes = ["Marca temporal", "Local", "Descripción", "Categoría", "Monto"]
+    columnas_finales = [c for c in cols_interes if c in st.session_state.df.columns]
+    st.dataframe(st.session_state.df[columnas_finales], use_container_width=True)
 else:
     st.info("No hay datos registrados todavía en la hoja de Excel.")
 
-# Botón para descargar respaldo
+# Botón para descargar reporte físico
 if not st.session_state.df.empty:
     csv = st.session_state.df.to_csv(index=False).encode('utf-8')
     st.download_button("📥 Descargar Reporte CSV", csv, "reporte_mantenimiento.csv", "text/csv")
