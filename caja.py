@@ -5,9 +5,9 @@ from datetime import date
 # --- CONFIGURACIÓN ---
 CLAVE_ADMIN = "jess7386"
 
-st.set_page_config(page_title="Ortiz Mantenimiento", layout="wide", page_icon="🛠️")
+st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
-# --- ESTILO DE ALTO CONTRASTE (Oscuro y Profesional) ---
+# --- ESTILO DE ALTO CONTRASTE (SyncData Dark Mode) ---
 st.markdown("""
     <style>
     /* Fondo general */
@@ -16,38 +16,30 @@ st.markdown("""
     }
     
     /* Títulos y textos generales */
-    h1, h2, h3, p, span, label {
+    h1, h2, h3, p, span {
         color: #FFFFFF !important;
     }
 
-    /* Tarjetas de Métricas */
+    /* Tarjetas de Métricas (Más oscuras y con borde resaltado) */
     div[data-testid="stMetric"] {
         background-color: #1E2130;
         padding: 20px;
         border-radius: 12px;
-        border: 2px solid #3E44FE;
+        border: 2px solid #3E44FE; /* Azul SyncData */
         box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
     }
     
     /* Ajuste de color dentro de las métricas */
     div[data-testid="stMetricLabel"] > div {
-        color: #B0BCCB !important;
+        color: #B0BCCB !important; /* Etiqueta en gris claro */
     }
     div[data-testid="stMetricValue"] > div {
-        color: #FFD700 !important; /* Dorado para los montos */
+        color: #FFD700 !important; /* Valores en Dorado para que resalten */
     }
 
     /* Sidebar */
     section[data-testid="stSidebar"] {
         background-color: #161B22;
-    }
-    
-    /* Estilo del pie de página */
-    .footer {
-        text-align: center;
-        padding: 20px;
-        color: #888888;
-        font-size: 14px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -58,11 +50,11 @@ if 'db_mantenimiento' not in st.session_state:
         columns=["Fecha", "Local", "Descripción", "Categoría", "Monto (S/)"]
     )
 
-st.title("🛠️ Caja Chica - Ortiz Mantenimiento")
-st.markdown("<p style='color: #3E44FE; font-weight: bold;'>Sistema de Control de Gastos | SyncData</p>", unsafe_allow_html=True)
+st.title("🛠️ Caja Chica Carlos Ortiz")
+st.markdown("<h3 style='color: #3E44FE;'>SyncData - Automatización de datos</h3>", unsafe_allow_html=True)
 
 # --- PANEL LATERAL ---
-st.sidebar.header("🔐 Acceso Administrativo")
+st.sidebar.header("🔐 Acceso Admin")
 password = st.sidebar.text_input("Ingresa la clave:", type="password")
 
 if password == CLAVE_ADMIN:
@@ -85,22 +77,41 @@ if password == CLAVE_ADMIN:
                     "Categoría": [cat],
                     "Monto (S/)": [monto]
                 })
-                # Concatenación segura
                 st.session_state.db_mantenimiento = pd.concat(
                     [st.session_state.db_mantenimiento, nueva_fila], 
                     ignore_index=True
                 )
-                st.sidebar.balloons()
                 st.rerun()
             else:
-                st.sidebar.error("Por favor, completa todos los campos.")
+                st.sidebar.error("Completa todos los campos")
 
 # --- PANEL PRINCIPAL ---
 df = st.session_state.db_mantenimiento
 
-# Métricas
+# Métricas con colores de alto contraste
 col1, col2, col3 = st.columns(3)
 total = df["Monto (S/)"].sum()
 
 col1.metric("Gasto Total", f"S/ {total:,.2f}")
-col2.metric("Registros", len(df))
+col2.metric("N° de Registros", len(df))
+col3.metric("Estado", "Activo")
+
+st.write("---")
+st.subheader("📋 Historial de Movimientos")
+
+if not df.empty:
+    # La tabla de Streamlit se adapta automáticamente al modo oscuro
+    st.dataframe(df, use_container_width=True)
+    
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Descargar Respaldo (CSV)",
+        data=csv,
+        file_name=f"Caja_Mantenimiento_{date.today()}.csv",
+        mime="text/csv",
+    )
+else:
+    st.warning("No hay datos en la sesión actual.")
+
+st.write("---")
+st.caption("Desarrollado para Mantenimiento Carlos Ortiz | SyncData 2026")
