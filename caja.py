@@ -5,20 +5,18 @@ from datetime import date
 
 # --- CONFIGURACIÓN ---
 CLAVE_ADMIN = "jess7386"
-# URL de respuesta de tu formulario de Google
 URL_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSd92A98fvp-Eae8-wKGDoCwxRKjjkZyFOEVZzywBTb31mAQYQ/formResponse"
-# ID de tu hoja de cálculo
 SHEET_ID = "1ORuU56oKeW7Y6pNgj--gX_-AYDxQAiZZFYnYEGBK-d8"
 
 st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
 # Función para LEER los datos del Excel
 def cargar_datos_nube():
-    # Usamos el GID 1791632682 de tu hoja de respuestas
+    # Usamos el GID 1791632682 que corresponde a tu hoja de respuestas
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1791632682"
     try:
         df = pd.read_csv(url)
-        # Limpiamos filas vacías para evitar el error de "None"
+        # Limpiamos filas vacías para evitar que la tabla muestre "None"
         df = df.dropna(subset=['Descripción'], how='all')
         return df
     except:
@@ -60,7 +58,7 @@ if pass_input == CLAVE_ADMIN:
             try:
                 requests.post(URL_FORM, data=datos_enviar)
                 st.success("¡Datos sincronizados con éxito!")
-                # Recargar tabla inmediatamente
+                # Recargar tabla inmediatamente después de guardar
                 st.session_state.df = cargar_datos_nube()
                 st.rerun()
             except:
@@ -72,19 +70,23 @@ else:
 st.write("---")
 
 if not st.session_state.df.empty:
-    # Asegurar que Monto sea numérico para el total
-    m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
-    st.metric("Gasto Total Acumulado", f"S/ {m_calc.sum():,.2f}")
+    # Asegurar que Monto sea numérico para el cálculo del total
+    if "Monto" in st.session_state.df.columns:
+        m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
+        st.metric("Gasto Total Acumulado", f"S/ {m_calc.sum():,.2f}")
 
 st.write("### 📋 Historial en Google Sheets")
 
 if not st.session_state.df.empty:
-    # Mostramos solo las columnas útiles
-    columnas = [col for col in ["Fecha", "Local", "Descripción", "Categoría", "Monto"] if col in st.session_state.df.columns]
-    st.dataframe(st.session_state.df[columnas], use_container_width=True)
+    # Filtramos solo las columnas que queremos mostrar
+    columnas_vista = [col for col in ["Fecha", "Local", "Descripción", "Categoría", "Monto"] if col in st.session_state.df.columns]
+    st.dataframe(st.session_state.df[columnas_vista], use_container_width=True)
 else:
-    st.info("No hay datos registrados aún.")
+    st.info("No hay datos registrados todavía.")
 
-# Botón de backup
-if not st.session_state.
+# Botón para descargar reporte físico
+if not st.session_state.df.empty:
+    csv = st.session_state.df.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Descargar Reporte CSV", csv, "reporte_mantenimiento.csv", "text/csv")
+
 
