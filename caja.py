@@ -5,24 +5,20 @@ from datetime import date
 
 # --- CONFIGURACIÓN ---
 CLAVE_ADMIN = "jess7386"
-
-# URL de respuesta de tu formulario de Google
 URL_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSd92A98fvp-Eae8-wKGDoCwxRKjjkZyFOEVZzywBTb31mAQYQ/formResponse"
-
-# ID de tu hoja de cálculo de Google
 SHEET_ID = "1ORuU56oKeW7Y6pNgj--gX_-AYDxQAiZZFYnYEGBK-d8"
 
 st.set_page_config(page_title="Mantenimiento Carlos Ortiz", layout="wide", page_icon="🛠️")
 
 # Función para LEER los datos del Excel
 def cargar_datos_nube():
-    # Apuntamos a la pestaña de respuestas (gid=1791632682)
+    # Usamos el GID de tu hoja de respuestas para leer directamente
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1791632682"
     try:
         df = pd.read_csv(url)
-        # Limpiamos filas que no tengan descripción para evitar el error de "None"
-        if not df.empty and 'Descripción' in df.columns:
-            df = df.dropna(subset=['Descripción'], how='all')
+        # Limpiamos filas que Google Sheets genera vacías por error
+        if not df.empty:
+            df = df.dropna(subset=['Local', 'Descripción'], how='all')
         return df
     except:
         return pd.DataFrame(columns=["Marca temporal", "ID", "Fecha", "Local", "Descripción", "Categoría", "Monto"])
@@ -50,7 +46,7 @@ if pass_input == CLAVE_ADMIN:
         if st.form_submit_button("💾 Guardar en Google Sheets"):
             id_u = pd.Timestamp.now().strftime('%Y%m%d%H%M%S')
             
-            # MAPEO DE CAMPOS (CUIDADO: No borrar ninguna comilla ni punto aquí)
+            # MAPEO DE CAMPOS (Verificado con tu formulario)
             datos_enviar = {
                 "entry.1593539825": id_u,
                 "entry.1223947471": str(f),
@@ -61,9 +57,10 @@ if pass_input == CLAVE_ADMIN:
             }
             
             try:
+                # Envío de datos al servidor de Google
                 requests.post(URL_FORM, data=datos_enviar)
                 st.success("¡Datos sincronizados con éxito!")
-                # Recargar tabla inmediatamente
+                # Forzar recarga de los datos para ver el nuevo registro
                 st.session_state.df = cargar_datos_nube()
                 st.rerun()
             except:
@@ -74,19 +71,23 @@ else:
 # --- PANEL PRINCIPAL (Visualización) ---
 st.write("---")
 
-# Calcular total si hay datos
+# Calcular total solo si hay registros reales
 if not st.session_state.df.empty and "Monto" in st.session_state.df.columns:
     m_calc = pd.to_numeric(st.session_state.df["Monto"], errors='coerce').fillna(0)
-    st.metric("Gasto Total Acumulado", f"S/ {m_calc.sum():,.2f}")
+    total_acumulado = m_calc.sum()
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Gasto Total Acumulado", f"S/ {total_acumulado:,.2f}")
+    col2.metric("Registros en Nube", len(st.session_state.df))
 
 st.write("### 📋 Historial en Google Sheets")
 
+# Mostrar solo las columnas relevantes si hay datos
 if not st.session_state.df.empty:
-    # Mostramos las columnas útiles
     columnas_vista = [col for col in ["Fecha", "Local", "Descripción", "Categoría", "Monto"] if col in st.session_state.df.columns]
     st.dataframe(st.session_state.df[columnas_vista], use_container_width=True)
 else:
-    st.info("No hay datos registrados todavía.")
+    st.info("No hay datos registrados todavía en la hoja de Excel.")
 
 # Botón para descargar respaldo
 if not st.session_state.df.empty:
